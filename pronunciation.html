@@ -1,0 +1,284 @@
+l, there is a way.",
+  "The quick brown fox jumps over the lazy dog.",
+  "Action speaks louder than words.",
+  "Honesty is the best policy.",
+  "Better late than never."
+];
+
+let currentSentenceIndex = 0;
+let targetSentence = sentenceBank[currentSentenceIndex];
+let targetWords = [];
+let displayWords = [];
+let attemptCount = 0;
+
+const studentClass = document.getElementById('studentClass');
+const studentId = document.getElementById('studentId');
+const studentName = document.getElementById('studentName');
+const sentenceBox = document.getElementById('sentenceBox');
+const btnAudio = document.getElementById('btnAudio');
+const btnMic = document.getElementById('btnMic');
+const btnNext = document.getElementById('btnNext');
+const btnTeacherLock = document.getElementById('btnTeacherLock');
+const teacherPanel = document.getElementById('teacherPanel');
+const btnRandom5 = document.getElementById('btnRandom5');
+const fileInput = document.getElementById('fileInput');
+const bankStatus = document.getElementById('bankStatus');
+const attemptCountDisplay = document.getElementById('attemptCountDisplay');
+const completionScore = document.getElementById('completionScore');
+const accuracyScore = document.getElementById('accuracyScore');
+const feedbackMsg = document.getElementById('feedbackMsg');
+
+// 檢查解鎖狀態
+if (localStorage.getItem('teacherUnlocked') === 'true') {
+  teacherPanel.style.display = 'block';
+  btnTeacherLock.innerText = "🔓 教師已解鎖";
+}
+
+// 教師權限驗證事件
+btnTeacherLock.addEventListener('click', () => {
+  if (teacherPanel.style.display === 'block') {
+    if (confirm("是否要鎖定並隱藏教師功能區？")) {
+      teacherPanel.style.display = 'none';
+      btnTeacherLock.innerText = "🔒 教師解鎖";
+      localStorage.removeItem('teacherUnlocked');
+    }
+    return;
+  }
+
+  const inputEmail = prompt("請輸入授權教師 Email 以解鎖自訂題庫功能：");
+  if (inputEmail && inputEmail.trim().toLowerCase() === AUTHORIZED_TEACHER_EMAIL.toLowerCase()) {
+    alert("驗證成功！已解鎖教師功能區。");
+    teacherPanel.style.display = 'block';
+    btnTeacherLock.innerText = "🔓 教師已解鎖";
+    localStorage.setItem('teacherUnlocked', 'true');
+  } else if (inputEmail !== null) {
+    alert("Email 驗證失敗，無權限存取教師功能！");
+  }
+});
+
+function initSentence(sentenceText) {
+  targetSentence = sentenceText;
+  targetWords = targetSentence.toLowerCase().match(/\b[\w'-]+\b/g) || [];
+  displayWords = targetSentence.split(/(\s+)/);
+
+  let wordCounter = 0;
+  sentenceBox.innerHTML = displayWords.map(chunk => {
+    if (/\b[\w'-]+\b/.test(chunk)) {
+      const html = `<span class="w-unit pending" id="w-${wordCounter}" data-word="${chunk.toLowerCase().replace(/[^\w'-]/g, '')}">${chunk}</span>`;
+      wordCounter++;
+      return html;
+    }
+    return chunk;
+  }).join('');
+}
+
+function resetScoresAndLoadFirst() {
+  currentSentenceIndex = 0;
+  initSentence(sentenceBank[0]);
+  completionScore.innerText = "0%";
+  accuracyScore.innerText = "0%";
+  attemptCount = 0;
+  attemptCountDisplay.innerText = "0次";
+  if (checkFormValidity()) {
+    feedbackMsg.innerText = `已成功載入新題庫（共 ${sentenceBank.length} 題），請點擊錄音開始練習。`;
+  }
+}
+
+initSentence(targetSentence);
+
+// 隨機增加 5 個日常生活常用英語句子
+btnRandom5.addEventListener('click', () => {
+  const shuffled = [...dailyEnglishPool].sort(() => 0.5 - Math.random());
+  sentenceBank = shuffled.slice(0, 5);
+  bankStatus.innerText = `目前題庫：隨機日常生活英語（共 5 條）`;
+  resetScoresAndLoadFirst();
+});
+
+// 上傳 text.txt 檔自訂題庫
+fileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    const text = event.target.result;
+    const lines = text.split(/\r?\n/).map(line => line.trim().replace(/^"|"$/g, '')).filter(line => line.length > 0);
+    
+    if (lines.length > 0) {
+      sentenceBank = lines;
+      bankStatus.innerText = `目前題庫：自訂檔案 ${file.name}（共 ${lines.length} 條）`;
+      resetScoresAndLoadFirst();
+    } else {
+      alert("上傳的文字檔內沒有有效英文句子！");
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+});
+
+btnNext.addEventListener('click', () => {
+  currentSentenceIndex = (currentSentenceIndex + 1) % sentenceBank.length;
+  initSentence(sentenceBank[currentSentenceIndex]);
+  completionScore.innerText = "0%";
+  accuracyScore.innerText = "0%";
+  if (checkFormValidity()) {
+    feedbackMsg.innerText = `已切換至第 ${currentSentenceIndex + 1} / ${sentenceBank.length} 題，點擊錄音按鈕開始練習。`;
+  }
+});
+
+function checkFormValidity() {
+  if (studentClass.value.trim() !== "" && studentId.value.trim() !== "" && studentName.value.trim() !== "") {
+    btnMic.disabled = false;
+    if (feedbackMsg.innerText.includes("請填寫上方學生資訊")) {
+      feedbackMsg.innerText = "基本資料已填寫，點擊按鈕開始錄音。";
+    }
+    return true;
+  } else {
+    btnMic.disabled = true;
+    feedbackMsg.innerText = "請填寫上方學生資訊，再開始練習。";
+    return false;
+  }
+}
+
+[studentClass, studentId, studentName].forEach(input => {
+  input.addEventListener('input', checkFormValidity);
+});
+checkFormValidity();
+
+// TTS 發音
+btnAudio.addEventListener('click', () => {
+  const synth = window.speechSynthesis;
+  synth.cancel();
+
+  const utterance = new SpeechSynthesisUtterance(targetSentence);
+  utterance.lang = 'en-US';
+  utterance.rate = 0.85;
+
+  const voices = synth.getVoices();
+  if (voices.length > 0) {
+    const usVoice = voices.find(v => v.lang.includes('en-US') || v.lang.includes('en_US'));
+    if (usVoice) utterance.voice = usVoice;
+  }
+
+  synth.speak(utterance);
+});
+
+// 語音辨識
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SpeechRecognition) {
+  feedbackMsg.innerText = "您的瀏覽器不支援語音辨識，請使用 Chrome 或 Safari 開啟。";
+  btnMic.disabled = true;
+} else {
+  const recognition = new SpeechRecognition();
+  recognition.lang = 'en-US';
+  recognition.interimResults = false;
+
+  btnMic.addEventListener('click', () => {
+    if (!checkFormValidity()) return;
+    try { recognition.start(); } catch(e) { recognition.stop(); }
+  });
+
+  recognition.onstart = () => {
+    btnMic.classList.add('recording');
+    btnMic.innerText = " 學生錄音中...";
+    feedbackMsg.innerText = `正在聆聽 [${studentClass.value}] ${studentName.value} 同學的發音...`;
+    for (let i = 0; i < targetWords.length; i++) {
+      const el = document.getElementById(`w-${i}`);
+      if(el) el.className = "w-unit pending";
+    }
+  };
+
+  recognition.onend = () => {
+    btnMic.classList.remove('recording');
+    btnMic.innerText = "🎙️ 開始錄音演練";
+  };
+
+  recognition.onresult = (event) => {
+    attemptCount++;
+    attemptCountDisplay.innerText = `${attemptCount}次`;
+
+    const studentSpeech = event.results[0][0].transcript;
+    const studentWords = studentSpeech.toLowerCase().match(/\b[\w'-]+\b/g) || [];
+
+    let sIdx = 0;
+    let correctCount = 0;
+    let missingCount = 0;
+    let wrongCount = 0;
+
+    for (let tIdx = 0; tIdx < targetWords.length; tIdx++) {
+      const target = targetWords[tIdx];
+      const el = document.getElementById(`w-${tIdx}`);
+
+      if (sIdx < studentWords.length) {
+        if (studentWords[sIdx] === target) {
+          if(el) el.className = "w-unit correct";
+          correctCount++;
+          sIdx++;
+        } else {
+          const nextMatchIndex = studentWords.slice(sIdx).indexOf(target);
+          if (nextMatchIndex !== -1) {
+            if(el) el.className = "w-unit missing";
+            missingCount++;
+          } else {
+            if(el) el.className = "w-unit wrong";
+            wrongCount++;
+            sIdx++;
+          }
+        }
+      } else {
+        if (el) el.className = "w-unit missing";
+        missingCount++;
+      }
+    }
+
+    const attemptWordsCount = correctCount + wrongCount;
+    const completionRate = Math.round((attemptWordsCount / targetWords.length) * 100);
+    const accuracyRate = attemptWordsCount > 0 ? Math.round((correctCount / attemptWordsCount) * 100) : 0;
+
+    completionScore.innerText = `${completionRate}%`;
+    accuracyScore.innerText = `${accuracyRate}%`;
+
+    feedbackMsg.innerHTML = `<div>正在同步第 ${attemptCount} 次練習數據至雲端...</div>`;
+    sendDataToGoogleSheet(completionRate, accuracyRate, studentSpeech, attemptCount, targetSentence);
+  };
+
+  recognition.onerror = (event) => {
+    feedbackMsg.innerText = `錯誤: ${event.error}。請確認已允許麥克風權限。`;
+  };
+}
+
+function sendDataToGoogleSheet(completion, accuracy, transcript, currentAttempt, targetSentenceText) {
+  const payload = {
+    className: studentClass.value.trim(),
+    studentId: studentId.value.trim(),
+    studentName: studentName.value.trim(),
+    attemptCount: currentAttempt,
+    targetSentence: targetSentenceText,
+    completion: completion,
+    accuracy: accuracy,
+    transcript: transcript
+  };
+
+  fetch(GAS_URL, {
+    method: "POST",
+    mode: "no-cors",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  })
+  .then(() => {
+    feedbackMsg.innerHTML = `
+      <span style="color:var(--success)">第 ${currentAttempt} 次練習成績已成功同步！</span><br>
+      ${studentName.value} 同學實際說出: "<span style="color:#7f8c8d; font-style: italic;">${transcript}</span>"
+    `;
+  })
+  .catch(err => {
+    feedbackMsg.innerHTML = `<span style="color:var(--danger)">雲端同步失敗，請檢查網路。</span>`;
+  });
+}
+</script>
+
+</body>
+</html>
+
+
+
+
