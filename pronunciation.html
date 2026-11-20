@@ -1,284 +1,337 @@
-l, there is a way.",
-  "The quick brown fox jumps over the lazy dog.",
-  "Action speaks louder than words.",
-  "Honesty is the best policy.",
-  "Better late than never."
-];
-
-let currentSentenceIndex = 0;
-let targetSentence = sentenceBank[currentSentenceIndex];
-let targetWords = [];
-let displayWords = [];
-let attemptCount = 0;
-
-const studentClass = document.getElementById('studentClass');
-const studentId = document.getElementById('studentId');
-const studentName = document.getElementById('studentName');
-const sentenceBox = document.getElementById('sentenceBox');
-const btnAudio = document.getElementById('btnAudio');
-const btnMic = document.getElementById('btnMic');
-const btnNext = document.getElementById('btnNext');
-const btnTeacherLock = document.getElementById('btnTeacherLock');
-const teacherPanel = document.getElementById('teacherPanel');
-const btnRandom5 = document.getElementById('btnRandom5');
-const fileInput = document.getElementById('fileInput');
-const bankStatus = document.getElementById('bankStatus');
-const attemptCountDisplay = document.getElementById('attemptCountDisplay');
-const completionScore = document.getElementById('completionScore');
-const accuracyScore = document.getElementById('accuracyScore');
-const feedbackMsg = document.getElementById('feedbackMsg');
-
-// 檢查解鎖狀態
-if (localStorage.getItem('teacherUnlocked') === 'true') {
-  teacherPanel.style.display = 'block';
-  btnTeacherLock.innerText = "🔓 教師已解鎖";
-}
-
-// 教師權限驗證事件
-btnTeacherLock.addEventListener('click', () => {
-  if (teacherPanel.style.display === 'block') {
-    if (confirm("是否要鎖定並隱藏教師功能區？")) {
-      teacherPanel.style.display = 'none';
-      btnTeacherLock.innerText = "🔒 教師解鎖";
-      localStorage.removeItem('teacherUnlocked');
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EchoScore – Luyện Phát âm Chuẩn Mỹ</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    :root {
+      --primary: #ffe600; --success: #4ade80; --warning: #fde047;
+      --danger: #ff6b6b; --purple: #c084fc; --orange: #fdba74;
+      --teal: #99f6e4; --dark: #000000; --light-bg: #fffbeb; --border: #000000;
     }
-    return;
-  }
-
-  const inputEmail = prompt("請輸入授權教師 Email 以解鎖自訂題庫功能：");
-  if (inputEmail && inputEmail.trim().toLowerCase() === AUTHORIZED_TEACHER_EMAIL.toLowerCase()) {
-    alert("驗證成功！已解鎖教師功能區。");
-    teacherPanel.style.display = 'block';
-    btnTeacherLock.innerText = "🔓 教師已解鎖";
-    localStorage.setItem('teacherUnlocked', 'true');
-  } else if (inputEmail !== null) {
-    alert("Email 驗證失敗，無權限存取教師功能！");
-  }
-});
-
-function initSentence(sentenceText) {
-  targetSentence = sentenceText;
-  targetWords = targetSentence.toLowerCase().match(/\b[\w'-]+\b/g) || [];
-  displayWords = targetSentence.split(/(\s+)/);
-
-  let wordCounter = 0;
-  sentenceBox.innerHTML = displayWords.map(chunk => {
-    if (/\b[\w'-]+\b/.test(chunk)) {
-      const html = `<span class="w-unit pending" id="w-${wordCounter}" data-word="${chunk.toLowerCase().replace(/[^\w'-]/g, '')}">${chunk}</span>`;
-      wordCounter++;
-      return html;
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: #faf5ee; background-image: radial-gradient(#000000 1.2px, transparent 1.2px);
+      background-size: 22px 22px; color: #000000; margin: 0; padding: 24px 15px;
+      display: flex; flex-direction: column; align-items: center; min-height: 100vh;
     }
-    return chunk;
-  }).join('');
-}
-
-function resetScoresAndLoadFirst() {
-  currentSentenceIndex = 0;
-  initSentence(sentenceBank[0]);
-  completionScore.innerText = "0%";
-  accuracyScore.innerText = "0%";
-  attemptCount = 0;
-  attemptCountDisplay.innerText = "0次";
-  if (checkFormValidity()) {
-    feedbackMsg.innerText = `已成功載入新題庫（共 ${sentenceBank.length} 題），請點擊錄音開始練習。`;
-  }
-}
-
-initSentence(targetSentence);
-
-// 隨機增加 5 個日常生活常用英語句子
-btnRandom5.addEventListener('click', () => {
-  const shuffled = [...dailyEnglishPool].sort(() => 0.5 - Math.random());
-  sentenceBank = shuffled.slice(0, 5);
-  bankStatus.innerText = `目前題庫：隨機日常生活英語（共 5 條）`;
-  resetScoresAndLoadFirst();
-});
-
-// 上傳 text.txt 檔自訂題庫
-fileInput.addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = (event) => {
-    const text = event.target.result;
-    const lines = text.split(/\r?\n/).map(line => line.trim().replace(/^"|"$/g, '')).filter(line => line.length > 0);
-    
-    if (lines.length > 0) {
-      sentenceBank = lines;
-      bankStatus.innerText = `目前題庫：自訂檔案 ${file.name}（共 ${lines.length} 條）`;
+    .inapp-warning {
+      display: none; background-color: var(--warning); color: #000000; border: 2.5px solid #000000;
+      box-shadow: 4px 4px 0px #000000; padding: 12px; border-radius: 10px; margin-bottom: 15px; width: 100%; max-width: 720px;
+      font-size: 13px; font-weight: 700; line-height: 1.5; text-align: center;
+    }
+    .instructor-card {
+      background: white; padding: 26px 22px; border-radius: 16px; border: 3.5px solid #000000;
+      box-shadow: 8px 8px 0px #000000; width: 100%; max-width: 720px; position: relative;
+    }
+    .header-container { display: flex; justify-content: space-between; align-items: center; position: relative; margin-bottom: 16px; border-bottom: 2.5px solid #000000; padding-bottom: 12px; }
+    h1 { color: #000000; font-size: 20px; margin: 0; font-weight: 900; text-transform: uppercase; }
+    .btn-teacher-lock {
+      background: var(--purple); border: 2px solid #000000; box-shadow: 2.5px 2.5px 0px #000000;
+      color: #000000; padding: 5px 12px; font-size: 12px; font-weight: 800; border-radius: 9999px; cursor: pointer;
+      text-transform: uppercase; transition: all 0.15s ease;
+    }
+    .btn-teacher-lock:hover { transform: translate(-1px, -1px); box-shadow: 3.5px 3.5px 0px #000000; }
+    .teacher-panel {
+      display: none; background: #fef9c3; border: 2.5px solid #000000; box-shadow: 4px 4px 0px #000000;
+      border-radius: 12px; padding: 14px; margin-bottom: 16px;
+    }
+    .panel-title { font-size: 13px; font-weight: 800; text-transform: uppercase; margin-bottom: 10px; }
+    .teacher-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .btn-file-label, .btn-random {
+      color: #000000; padding: 7px 14px; border-radius: 8px; font-size: 12px; font-weight: 800; cursor: pointer;
+      border: 2px solid #000000; box-shadow: 2.5px 2.5px 0px #000000; transition: all 0.15s ease;
+    }
+    .btn-file-label { background-color: var(--teal); display: inline-block; }
+    .btn-random { background-color: var(--orange); }
+    .btn-file-label:hover, .btn-random:hover { transform: translate(-1px, -1px); box-shadow: 3.5px 3.5px 0px #000000; }
+    .bank-status { font-size: 12px; font-weight: 700; color: #000000; margin-top: 8px; }
+    .student-info-form {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;
+      background: #ffffff; padding: 12px; border-radius: 12px; border: 2.5px solid #000000; box-shadow: 4px 4px 0px #000000; margin-bottom: 16px;
+    }
+    .form-group { display: flex; flex-direction: column; text-align: left; }
+    .form-group label { font-size: 11px; font-weight: 800; text-transform: uppercase; margin-bottom: 4px; }
+    .form-group label::after { content: " *"; color: var(--danger); font-weight: 900; }
+    .form-group input { padding: 7px 10px; font-size: 13px; font-weight: 700; border: 2px solid #000000; border-radius: 8px; box-shadow: 2px 2px 0px #000000; outline: none; }
+    .form-group input:focus { box-shadow: 3.5px 3.5px 0px #000000; background: #fffdf0; }
+    .sentence-box {
+      font-size: 22px; font-weight: 700; line-height: 1.6; padding: 18px 20px;
+      background: #ffffff; border-radius: 14px; border: 3px solid #000000; box-shadow: 4px 4px 0px #000000; margin-bottom: 16px; text-align: left;
+    }
+    .w-unit { display: inline-block; margin: 3px 2px; padding: 3px 8px; border-radius: 6px; font-weight: 800; border: 2px solid #000000; box-shadow: 2px 2px 0px #000000; transition: all 0.15s; }
+    .w-unit.pending { color: #000000; background: #f8fafc; }
+    .w-unit.correct { color: #000000; background-color: var(--success); }
+    .w-unit.wrong { color: #000000; background-color: var(--danger); }
+    .w-unit.missing { color: #000000; background-color: var(--warning); }
+    .legend { display: flex; justify-content: center; gap: 8px; margin-bottom: 16px; font-size: 11.5px; font-weight: 800; flex-wrap: wrap; }
+    .legend-item { display: flex; align-items: center; gap: 5px; background: #ffffff; border: 1.5px solid #000000; box-shadow: 1.5px 1.5px 0px #000000; border-radius: 6px; padding: 3px 8px; }
+    .dot { width: 10px; height: 10px; border-radius: 3px; border: 1px solid #000000; }
+    .control-panel { display: flex; gap: 8px; justify-content: center; margin-bottom: 16px; flex-wrap: wrap; }
+    button { padding: 9px 18px; font-size: 13.5px; font-weight: 800; border: 2.5px solid #000000; border-radius: 8px; box-shadow: 3.5px 3.5px 0px #000000; cursor: pointer; text-transform: uppercase; transition: all 0.15s; }
+    button:hover:not(:disabled) { transform: translate(-1.5px, -1.5px); box-shadow: 5px 5px 0px #000000; }
+    button:active:not(:disabled) { transform: translate(1.5px, 1.5px); box-shadow: 1px 1px 0px #000000; }
+    .btn-audio { background: #a5f3fc; color: #000000; }
+    .btn-mic { background: var(--primary); color: #000000; min-width: 160px; }
+    .btn-next { background: var(--purple); color: #000000; }
+    .btn-mic.recording { background: var(--danger); color: #ffffff; }
+    button:disabled { background-color: #cbd5e1; color: #94a3b8; border-color: #94a3b8; box-shadow: 2px 2px 0px #94a3b8; cursor: not-allowed; }
+    .score-board {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+      background: #fef08a; padding: 10px 12px; border-radius: 12px; border: 2.5px solid #000000; box-shadow: 4px 4px 0px #000000; text-align: center;
+    }
+    .score-card { background: #ffffff; border: 2px solid #000000; box-shadow: 2px 2px 0px #000000; border-radius: 8px; padding: 6px 4px; }
+    .score-num { font-size: 22px; font-weight: 900; margin-top: 2px; }
+    .score-num.count { color: var(--purple); }
+    .score-num.complete { color: #16a34a; }
+    .score-num.total { color: #2563eb; }
+    .feedback-msg { grid-column: span 3; margin-top: 8px; font-weight: 800; color: #000000; border-top: 2px dashed #000000; padding-top: 10px; font-size: 13px; }
+    @media (max-width: 500px) {
+      .sentence-box { font-size: 19px; padding: 14px 16px; }
+      .student-info-form { grid-template-columns: 1fr; }
+      .legend, .legend-bar { display: grid !important; grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; width: 100% !important; }
+      .legend-item { justify-content: center !important; }
+      .score-board { grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 8px 6px; }
+      .score-card { padding: 4px 2px; }
+      .score-num { font-size: 16px; }
+      .feedback-msg { grid-column: span 3; }
+    }
+  </style>
+</head>
+<body>
+  <div class="inapp-warning" id="inAppWarning">
+    In-App Browser Detected.<br>
+    Please tap <strong>"⋮"</strong> or <strong>"Share"</strong> in the top right corner and select <strong>"Open in Chrome / Safari"</strong> to allow microphone access.
+  </div>
+  <div class="instructor-card">
+    <div class="header-container">
+      <h1><i class="fa-solid fa-microphone-lines"></i> EchoScore – Luyện Phát âm Chuẩn Mỹ</h1>
+      <button class="btn-teacher-lock" id="btnTeacherLock"><i class="fa-solid fa-lock"></i> Teacher Unlock</button>
+    </div>
+    <div class="teacher-panel" id="teacherPanel">
+      <div class="panel-title"><i class="fa-solid fa-sliders"></i> Question Bank Settings & Customization</div>
+      <div style="margin-bottom: 10px; display: flex; gap: 6px;">
+        <input type="email" id="teacherEmailInput" placeholder="Enter Teacher Email..." style="padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; flex: 1;">
+        <button id="btnVerifyEmail" style="padding: 6px 12px; background: #2563eb; color: #fff; font-size: 12px;">Verify</button>
+      </div>
+      <div class="teacher-actions" id="teacherActionsBox" style="display: none;">
+        <button class="btn-random" id="btnRandom5"><i class="fa-solid fa-dice"></i> Load 5 Random Daily Sentences</button>
+        <label class="btn-file-label" for="fileInput"><i class="fa-solid fa-file-arrow-up"></i> Upload custom text.txt</label>
+        <input type="file" id="fileInput" accept=".txt" style="display: none;">
+      </div>
+      <div class="bank-status" id="bankStatus">Current question bank: Default Proverbs (6 sentences)</div>
+    </div>
+    <div class="student-info-form">
+      <div class="form-group"><label for="studentClass">Class</label><input type="text" id="studentClass" placeholder="e.g. English A1" required></div>
+      <div class="form-group"><label for="studentId">Student ID</label><input type="text" id="studentId" placeholder="e.g. 1090123" required></div>
+      <div class="form-group"><label for="studentName">Full Name</label><input type="text" id="studentName" placeholder="e.g. Alex Johnson" required></div>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><span class="dot" style="background: #7f8c8d"></span> Unattempted</div>
+      <div class="legend-item"><span class="dot" style="background: var(--success)"></span> Correct</div>
+      <div class="legend-item"><span class="dot" style="background: var(--danger)"></span> Incorrect</div>
+      <div class="legend-item"><span class="dot" style="background: var(--warning)"></span> Missed word</div>
+    </div>
+    <div class="sentence-box" id="sentenceBox"></div>
+    <div class="control-panel">
+      <button class="btn-audio" id="btnAudio"><i class="fa-solid fa-volume-high"></i> Listen Sample (US Accent)</button>
+      <button class="btn-mic" id="btnMic"><i class="fa-solid fa-microphone"></i> Start Recording</button>
+      <button class="btn-next" id="btnNext"><i class="fa-solid fa-forward-step"></i> Next Sentence</button>
+    </div>
+    <div class="score-board">
+      <div class="score-card"><div>Attempts</div><div class="score-num count" id="attemptCountDisplay">0 times</div></div>
+      <div class="score-card"><div>Sentence Completion</div><div class="score-num complete" id="completionScore">0%</div></div>
+      <div class="score-card"><div>Pronunciation Accuracy</div><div class="score-num total" id="accuracyScore">0%</div></div>
+      <div class="feedback-msg" id="feedbackMsg">Please fill in student information above before practicing.</div>
+    </div>
+  </div>
+  <script>
+    const AUTHORIZED_TEACHER_EMAIL = "audreyshih32@gm.chihlee.edu.tw";
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwGKabME3C398ARfyvxRpsLDyJ9jZgcnYAApWy1yN9fU1K13sf1jM5nFNjqQUAfiwO2/exec";
+    const ua = navigator.userAgent || navigator.vendor || window.opera;
+    if ((ua.indexOf("Line") > -1) || (ua.indexOf("FBAN") > -1) || (ua.indexOf("FBAV") > -1) || (ua.indexOf("Instagram") > -1) || (ua.indexOf("Teams") > -1)) {
+      document.getElementById('inAppWarning').style.display = 'block';
+    }
+    const dailyEnglishPool = [
+      "How's it going with you today?", "Could you give me a quick hand with this?",
+      "Sorry, I didn't quite catch what you said.", "Let's grab a cup of coffee sometime this week.",
+      "Do you happen to know where the restroom is?", "That sounds like a wonderful idea!",
+      "I'll get back to you as soon as possible.", "What do you feel like eating for dinner tonight?",
+      "Take your time, there is no rush at all.", "Thanks a lot for taking the time to help me."
+    ];
+    let sentenceBank = [
+      "Practice makes perfect.", "Where there is a will, there is a way.",
+      "The quick brown fox jumps over the lazy dog.", "Action speaks louder than words.",
+      "Honesty is the best policy.", "Better late than never."
+    ];
+    let currentSentenceIndex = 0;
+    let targetSentence = sentenceBank[0];
+    let targetWords = [];
+    let attemptCount = 0;
+    const studentClass = document.getElementById('studentClass');
+    const studentId = document.getElementById('studentId');
+    const studentName = document.getElementById('studentName');
+    const sentenceBox = document.getElementById('sentenceBox');
+    const btnAudio = document.getElementById('btnAudio');
+    const btnMic = document.getElementById('btnMic');
+    const btnNext = document.getElementById('btnNext');
+    const btnTeacherLock = document.getElementById('btnTeacherLock');
+    const teacherPanel = document.getElementById('teacherPanel');
+    const teacherActionsBox = document.getElementById('teacherActionsBox');
+    const btnVerifyEmail = document.getElementById('btnVerifyEmail');
+    const teacherEmailInput = document.getElementById('teacherEmailInput');
+    const btnRandom5 = document.getElementById('btnRandom5');
+    const fileInput = document.getElementById('fileInput');
+    const bankStatus = document.getElementById('bankStatus');
+    const attemptCountDisplay = document.getElementById('attemptCountDisplay');
+    const completionScore = document.getElementById('completionScore');
+    const accuracyScore = document.getElementById('accuracyScore');
+    const feedbackMsg = document.getElementById('feedbackMsg');
+    btnTeacherLock.addEventListener('click', () => {
+      teacherPanel.style.display = teacherPanel.style.display === 'block' ? 'none' : 'block';
+    });
+    btnVerifyEmail.addEventListener('click', () => {
+      if (teacherEmailInput.value.trim().toLowerCase() === AUTHORIZED_TEACHER_EMAIL.toLowerCase()) {
+        teacherActionsBox.style.display = 'flex';
+        btnTeacherLock.innerHTML = '<i class="fa-solid fa-lock-open"></i> Teacher Unlocked';
+        feedbackMsg.innerText = "Teacher question bank customization unlocked.";
+      } else {
+        feedbackMsg.innerText = "Invalid verification email!";
+      }
+    });
+    function initSentence(sentenceText) {
+      targetSentence = sentenceText;
+      targetWords = targetSentence.toLowerCase().match(/\b[\w'-]+\b/g) || [];
+      const displayWords = targetSentence.split(/(\s+)/);
+      let wordCounter = 0;
+      sentenceBox.innerHTML = displayWords.map(chunk => {
+        if (/\b[\w'-]+\b/.test(chunk)) {
+          const html = `<span class="w-unit pending" id="w-${wordCounter}">${chunk}</span>`;
+          wordCounter++;
+          return html;
+        }
+        return chunk;
+      }).join('');
+    }
+    function resetScoresAndLoadFirst() {
+      currentSentenceIndex = 0;
+      initSentence(sentenceBank[0]);
+      completionScore.innerText = "0%";
+      accuracyScore.innerText = "0%";
+      attemptCount = 0;
+      attemptCountDisplay.innerText = "0 times";
+    }
+    initSentence(targetSentence);
+    btnRandom5.addEventListener('click', () => {
+      sentenceBank = [...dailyEnglishPool].sort(() => 0.5 - Math.random()).slice(0, 5);
+      bankStatus.innerText = "Current question bank: Random Daily English (5 sentences)";
       resetScoresAndLoadFirst();
+    });
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const lines = ev.target.result.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+        if (lines.length > 0) {
+          sentenceBank = lines;
+          bankStatus.innerText = `Question bank: ${file.name} (${lines.length} sentences)`;
+          resetScoresAndLoadFirst();
+        }
+      };
+      reader.readAsText(file, 'UTF-8');
+    });
+    btnNext.addEventListener('click', () => {
+      currentSentenceIndex = (currentSentenceIndex + 1) % sentenceBank.length;
+      initSentence(sentenceBank[currentSentenceIndex]);
+      completionScore.innerText = "0%";
+      accuracyScore.innerText = "0%";
+    });
+    function checkFormValidity() {
+      if (studentClass.value.trim() && studentId.value.trim() && studentName.value.trim()) {
+        btnMic.disabled = false;
+        return true;
+      }
+      btnMic.disabled = true;
+      return false;
+    }
+    [studentClass, studentId, studentName].forEach(el => el.addEventListener('input', checkFormValidity));
+    checkFormValidity();
+    btnAudio.addEventListener('click', () => {
+      const synth = window.speechSynthesis;
+      synth.cancel();
+      const utter = new SpeechSynthesisUtterance(targetSentence);
+      utter.lang = 'en-US';
+      utter.rate = 0.85;
+      synth.speak(utter);
+    });
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      feedbackMsg.innerText = "Voice recognition is not supported in this browser. Please open in Chrome or Safari.";
+      btnMic.disabled = true;
     } else {
-      alert("上傳的文字檔內沒有有效英文句子！");
-    }
-  };
-  reader.readAsText(file, 'UTF-8');
-});
-
-btnNext.addEventListener('click', () => {
-  currentSentenceIndex = (currentSentenceIndex + 1) % sentenceBank.length;
-  initSentence(sentenceBank[currentSentenceIndex]);
-  completionScore.innerText = "0%";
-  accuracyScore.innerText = "0%";
-  if (checkFormValidity()) {
-    feedbackMsg.innerText = `已切換至第 ${currentSentenceIndex + 1} / ${sentenceBank.length} 題，點擊錄音按鈕開始練習。`;
-  }
-});
-
-function checkFormValidity() {
-  if (studentClass.value.trim() !== "" && studentId.value.trim() !== "" && studentName.value.trim() !== "") {
-    btnMic.disabled = false;
-    if (feedbackMsg.innerText.includes("請填寫上方學生資訊")) {
-      feedbackMsg.innerText = "基本資料已填寫，點擊按鈕開始錄音。";
-    }
-    return true;
-  } else {
-    btnMic.disabled = true;
-    feedbackMsg.innerText = "請填寫上方學生資訊，再開始練習。";
-    return false;
-  }
-}
-
-[studentClass, studentId, studentName].forEach(input => {
-  input.addEventListener('input', checkFormValidity);
-});
-checkFormValidity();
-
-// TTS 發音
-btnAudio.addEventListener('click', () => {
-  const synth = window.speechSynthesis;
-  synth.cancel();
-
-  const utterance = new SpeechSynthesisUtterance(targetSentence);
-  utterance.lang = 'en-US';
-  utterance.rate = 0.85;
-
-  const voices = synth.getVoices();
-  if (voices.length > 0) {
-    const usVoice = voices.find(v => v.lang.includes('en-US') || v.lang.includes('en_US'));
-    if (usVoice) utterance.voice = usVoice;
-  }
-
-  synth.speak(utterance);
-});
-
-// 語音辨識
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (!SpeechRecognition) {
-  feedbackMsg.innerText = "您的瀏覽器不支援語音辨識，請使用 Chrome 或 Safari 開啟。";
-  btnMic.disabled = true;
-} else {
-  const recognition = new SpeechRecognition();
-  recognition.lang = 'en-US';
-  recognition.interimResults = false;
-
-  btnMic.addEventListener('click', () => {
-    if (!checkFormValidity()) return;
-    try { recognition.start(); } catch(e) { recognition.stop(); }
-  });
-
-  recognition.onstart = () => {
-    btnMic.classList.add('recording');
-    btnMic.innerText = " 學生錄音中...";
-    feedbackMsg.innerText = `正在聆聽 [${studentClass.value}] ${studentName.value} 同學的發音...`;
-    for (let i = 0; i < targetWords.length; i++) {
-      const el = document.getElementById(`w-${i}`);
-      if(el) el.className = "w-unit pending";
-    }
-  };
-
-  recognition.onend = () => {
-    btnMic.classList.remove('recording');
-    btnMic.innerText = "🎙️ 開始錄音演練";
-  };
-
-  recognition.onresult = (event) => {
-    attemptCount++;
-    attemptCountDisplay.innerText = `${attemptCount}次`;
-
-    const studentSpeech = event.results[0][0].transcript;
-    const studentWords = studentSpeech.toLowerCase().match(/\b[\w'-]+\b/g) || [];
-
-    let sIdx = 0;
-    let correctCount = 0;
-    let missingCount = 0;
-    let wrongCount = 0;
-
-    for (let tIdx = 0; tIdx < targetWords.length; tIdx++) {
-      const target = targetWords[tIdx];
-      const el = document.getElementById(`w-${tIdx}`);
-
-      if (sIdx < studentWords.length) {
-        if (studentWords[sIdx] === target) {
-          if(el) el.className = "w-unit correct";
-          correctCount++;
-          sIdx++;
-        } else {
-          const nextMatchIndex = studentWords.slice(sIdx).indexOf(target);
-          if (nextMatchIndex !== -1) {
-            if(el) el.className = "w-unit missing";
-            missingCount++;
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+      btnMic.addEventListener('click', () => {
+        if (!checkFormValidity()) return;
+        try { recognition.start(); } catch (e) { recognition.stop(); }
+      });
+      recognition.onstart = () => {
+        btnMic.classList.add('recording');
+        btnMic.innerHTML = '<i class="fa-solid fa-circle-stop"></i> Recording...';
+      };
+      recognition.onend = () => {
+        btnMic.classList.remove('recording');
+        btnMic.innerHTML = '<i class="fa-solid fa-microphone"></i> Start Recording';
+      };
+      recognition.onresult = (event) => {
+        attemptCount++;
+        attemptCountDisplay.innerText = `${attemptCount} times`;
+        const studentSpeech = event.results[0][0].transcript;
+        const studentWords = studentSpeech.toLowerCase().match(/\b[\w'-]+\b/g) || [];
+        let sIdx = 0, correctCount = 0, missingCount = 0, wrongCount = 0;
+        for (let tIdx = 0; tIdx < targetWords.length; tIdx++) {
+          const target = targetWords[tIdx];
+          const el = document.getElementById(`w-${tIdx}`);
+          if (sIdx < studentWords.length) {
+            if (studentWords[sIdx] === target) {
+              if (el) el.className = "w-unit correct";
+              correctCount++; sIdx++;
+            } else if (studentWords.slice(sIdx).indexOf(target) !== -1) {
+              if (el) el.className = "w-unit missing";
+              missingCount++;
+            } else {
+              if (el) el.className = "w-unit wrong";
+              wrongCount++; sIdx++;
+            }
           } else {
-            if(el) el.className = "w-unit wrong";
-            wrongCount++;
-            sIdx++;
+            if (el) el.className = "w-unit missing";
+            missingCount++;
           }
         }
-      } else {
-        if (el) el.className = "w-unit missing";
-        missingCount++;
-      }
+        const attemptWordsCount = correctCount + wrongCount;
+        const completionRate = Math.round((attemptWordsCount / targetWords.length) * 100);
+        const accuracyRate = attemptWordsCount > 0 ? Math.round((correctCount / attemptWordsCount) * 100) : 0;
+        completionScore.innerText = `${completionRate}%`;
+        accuracyScore.innerText = `${accuracyRate}%`;
+        fetch(GAS_URL, {
+          method: "POST", mode: "no-cors",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            className: studentClass.value.trim(), studentId: studentId.value.trim(),
+            studentName: studentName.value.trim(), attemptCount: attemptCount,
+            targetSentence: targetSentence, completion: completionRate,
+            accuracy: accuracyRate, transcript: studentSpeech
+          })
+        }).then(() => {
+          feedbackMsg.innerHTML = `<span style="color:var(--success)"><i class="fa-solid fa-circle-check"></i> Synced attempt #${attemptCount}!</span><br>You said: "${studentSpeech}"`;
+        });
+      };
     }
-
-    const attemptWordsCount = correctCount + wrongCount;
-    const completionRate = Math.round((attemptWordsCount / targetWords.length) * 100);
-    const accuracyRate = attemptWordsCount > 0 ? Math.round((correctCount / attemptWordsCount) * 100) : 0;
-
-    completionScore.innerText = `${completionRate}%`;
-    accuracyScore.innerText = `${accuracyRate}%`;
-
-    feedbackMsg.innerHTML = `<div>正在同步第 ${attemptCount} 次練習數據至雲端...</div>`;
-    sendDataToGoogleSheet(completionRate, accuracyRate, studentSpeech, attemptCount, targetSentence);
-  };
-
-  recognition.onerror = (event) => {
-    feedbackMsg.innerText = `錯誤: ${event.error}。請確認已允許麥克風權限。`;
-  };
-}
-
-function sendDataToGoogleSheet(completion, accuracy, transcript, currentAttempt, targetSentenceText) {
-  const payload = {
-    className: studentClass.value.trim(),
-    studentId: studentId.value.trim(),
-    studentName: studentName.value.trim(),
-    attemptCount: currentAttempt,
-    targetSentence: targetSentenceText,
-    completion: completion,
-    accuracy: accuracy,
-    transcript: transcript
-  };
-
-  fetch(GAS_URL, {
-    method: "POST",
-    mode: "no-cors",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  })
-  .then(() => {
-    feedbackMsg.innerHTML = `
-      <span style="color:var(--success)">第 ${currentAttempt} 次練習成績已成功同步！</span><br>
-      ${studentName.value} 同學實際說出: "<span style="color:#7f8c8d; font-style: italic;">${transcript}</span>"
-    `;
-  })
-  .catch(err => {
-    feedbackMsg.innerHTML = `<span style="color:var(--danger)">雲端同步失敗，請檢查網路。</span>`;
-  });
-}
-</script>
-
+  </script>
 </body>
 </html>
-
-
-
-
